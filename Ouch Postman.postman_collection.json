@@ -122,13 +122,13 @@
 					}
 				],
 				"url": {
-					"raw": "{{host}}/accounts/get-timeslotss/?date=30-4-2024",
+					"raw": "{{host}}/accounts/get-timeslots/?date=30-4-2024",
 					"host": [
 						"{{host}}"
 					],
 					"path": [
 						"accounts",
-						"get-timeslotss",
+						"get-timeslots",
 						""
 					],
 					"query": [
