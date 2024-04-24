@@ -22,9 +22,3 @@ def send_email_cancel(appointment: Appointment):
     recipient_list = [appointment.barber.email, appointment.customer.email ]
     send_mail( subject, message, email_from, recipient_list )
     
-# def send_email_to_barber(barber, customer, date, start_time):
-#     subject = 'Appointment booked'
-#     message = f"Hi {barber}, {start_time}:00 on {date} is booked. \nCustomer name: {customer.name}\nPhone Number: {customer.phone}\nEmail: {customer.email}"
-#     email_from = settings.EMAIL_HOST_USER
-#     recipient_list = [barber.email ]
-#     send_mail( subject, message, email_from, recipient_list )

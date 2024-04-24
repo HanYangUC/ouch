@@ -10,20 +10,16 @@ from appointments.models import Appointment
 from .utils import send_email, send_email_cancel
 
 class AppointmentViewset(viewsets.ModelViewSet):
-    # permission_classes = [TokenAuthentication]
-    authentication_classes = (TokenAuthentication, )
+    permission_classes = (IsAuthenticated, )
+    # authentication_classes = (TokenAuthentication, )
     
     def list(self, request, *args, **kwargs):
         queryset = Appointment.objects.all()
         serializer = AppointmentSerializer(queryset, many=True)
-        return Response(serializer.data)
+        return Response({'Appointment': serializer.data})
     
     def create(self, request, *args, **kwargs):
         data = request.data.copy()
-        barber = data.get('barber')
-        start_time = data.get('start_time')
-        date = data.get('date')
-        customer = data.get('customer')
         
         appointment_exist = Appointment.objects.filter(barber=data.get('barber'), start_time=data.get('start_time'), date=data.get('date')).exists()
         if appointment_exist:
@@ -33,16 +29,18 @@ class AppointmentViewset(viewsets.ModelViewSet):
         if serializer.is_valid(raise_exception=True):
             serializer.save()
             
-            return Response(serializer.data)
-        return Response({'lel' : f'{request.user}, {request.user.id}, {request.user.name}, {request.user.email}'}) #update responsemsg
-    
-    # def update(self, request, *args, **kwargs):
+            return Response({'Success': serializer.data})
+        return Response({'Error' : 'Invalid input'})
         
         
     def cancel(self, request, id, *args, **kwargs):
         appointment = Appointment.objects.get(id=id)
+        if not (request.user.id == appointment.barber.id or request.user.id == appointment.customer.id):
+            return Response({'Error': 'User not associated to appointment'})
+        
         if appointment.is_cancelled:
             return Response({'Error': 'Appointment is already cancelled'})
+        
         appointment.is_cancelled = True
         appointment.save()
         send_email_cancel(appointment=appointment)

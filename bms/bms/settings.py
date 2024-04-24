@@ -49,10 +49,8 @@ REST_FRAMEWORK = {
     ),
     'DEFAULT_AUTHENTICATION_CLASSES': (
         'rest_framework.authentication.TokenAuthentication',
-        # 'rest_framework_simplejwt.authentication.JWTAuthentication',
-        # 'rest_framework.authentication.BasicAuthentication',
-        # 'rest_framework.authentication.SessionAuthentication',
-        # 'accounts.authentication.CustomAuthToken',
+        'rest_framework.authentication.BasicAuthentication',
+        'rest_framework.authentication.SessionAuthentication',
     ),
 }
 AUTH_USER_MODEL = 'accounts.User'
@@ -103,8 +101,8 @@ DATABASES = {
         'NAME': 'testouch',
         'USER': 'hy',
         'PASSWORD': 'hy',
-        'HOST': 'testouch',
-        'PORT': '5432',
+        # 'HOST': 'testouch',
+        # 'PORT': '5432',
     }
 }
 

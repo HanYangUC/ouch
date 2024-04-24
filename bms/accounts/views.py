@@ -2,17 +2,16 @@ from django.shortcuts import render
 
 # Create your views here.
 from . import serializers
+from .models import User, BarberTimeslot
+from appointments.models import Appointment
 from rest_framework import viewsets
 from rest_framework.response import Response
-from .models import User
 from rest_framework.authtoken.views import ObtainAuthToken
 from rest_framework.authtoken.models import Token
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from datetime import datetime
 from django.db.models import Q
 from datetime import datetime
-
-
 class RegistrationViewSet(viewsets.ModelViewSet):
     serializer_class = serializers.RegistrationSerializer
     permission_classes = (AllowAny,)
@@ -30,9 +29,9 @@ class RegistrationViewSet(viewsets.ModelViewSet):
 
 class UserViewSet(viewsets.ModelViewSet):
     def list(self, request, *args, **kwargs):
-        q = User.objects.get_queryset()
-        
-        return Response(str(q))
+        queryset = User.objects.get_queryset()
+        user_list = serializers.UserSerializer(queryset, many=True)
+        return Response(user_list.data)
     
 
 class CustomAuthToken(ObtainAuthToken):
@@ -49,25 +48,10 @@ class CustomAuthToken(ObtainAuthToken):
         }
         return Response(data)
 
-from rest_framework.authtoken.models import Token
-from rest_framework.response import Response
-from rest_framework.views import APIView
-from rest_framework.authentication import TokenAuthentication
-from django.contrib.auth import authenticate
-class LoginView(APIView):
-    authentication_class = [TokenAuthentication]
-    def post(self, request, *args, **kwargs):
-        print('heh')
-        user = authenticate(username=request.data['username'], password=request.data['password'])
-        if user:
-            token, created = Token.objects.get_or_create(user=user)
-            return Response({'token': token.key})
-        else:
-            return Response({'error': 'Invalid credentials'}, status=401)
 
 
-from .models import BarberTimeslot
-from appointments.models import Appointment
+
+
 class TimeslotViewset(viewsets.ModelViewSet):
     # authentication_classes = (TokenAuthentication, )
     permission_classes = (IsAuthenticated, )
@@ -83,9 +67,8 @@ class TimeslotViewset(viewsets.ModelViewSet):
             defaults={'timeslot': timeslot}
         )
         if created:
-            print('created', barber_timeslot)
+            return Response({'Success': 'Created timeslot for barber'})
         else:
-            print(Q(date__week_day=(int(day_of_week)+2)%7))
             appointments = Appointment.objects.filter(
                 Q(barber=barber) & 
                 Q(date__week_day=(int(day_of_week)+2)%7) & #1=sunday, 7=saturday, my default is 0=monday, 6=sunday, %7 to make 6 = sunday
@@ -100,7 +83,7 @@ class TimeslotViewset(viewsets.ModelViewSet):
                 old_timeslot = barber_timeslot.timeslot
                 for booked_slot in active_timeslot:
                     if old_timeslot[booked_slot] == '1' and timeslot[booked_slot] == '0':
-                        return Response({'error': 'active booking, cannot update (or cancel the appointment before updating)'})
+                        return Response({'Error': 'Active booking, cannot update (or cancel the appointment before updating)'})
                     
                 
                 
@@ -108,26 +91,29 @@ class TimeslotViewset(viewsets.ModelViewSet):
                 barber_timeslot.timeslot = timeslot
                 barber_timeslot.save()
                     
-            return Response({'updated': 'updated'})
+            return Response({'Success': 'Timeslot updated'})
             
-        return Response({"a"})
     
-    
-    def get_timeslotss(self, request, id=None, val_date=None, *args, **kwargs):
+    def get_timeslots(self, request, id=None, val_date=None, *args, **kwargs):
+        from django.db.models import Case, When, Value, IntegerField
+        
         if val_date:
             date = val_date
             if date < datetime.today().date():
-                raise Response('cannot be earlier than today')
+                raise Response({'Error': 'Cannot be earlier than today'})
         else: 
             date = datetime.strptime(request.GET.get('date'), "%d-%m-%Y") or val_date
             if date.date() < datetime.today().date():
-                return Response('cannot be earlier than today')
+                return Response({'Error': 'Cannot be earlier than today'})
         full_timeslot = []
         
         if not id:
+            area = request.GET.get('area', None)
             barber_timeslot = BarberTimeslot.objects.filter(
                 Q(day_of_week=date.weekday())
             )
+            if area:
+                barber_timeslot = barber_timeslot.filter(user__area=area)
             appo = Appointment.objects.filter(
                 Q(date=date)
             )
@@ -156,9 +142,12 @@ class TimeslotViewset(viewsets.ModelViewSet):
                         )
             
                 if not data:
-                    return Response({'Error': 'no available barber in selected timeslot'})
+                    return Response({'Error': 'No available barber in selected timeslot'})
                 else:
-                    return Response({f'available on {time}': data})
+                    return Response({f'Available on {time}': data})
+
+            if not len(full_timeslot):
+                return Response({'Error': 'No available barber in selected date'})
             
             return Response({f'Barber full timeslot on {dict(BarberTimeslot.DAYS_OF_WEEK).get(date.weekday())} ({date})': full_timeslot})
             
@@ -174,125 +163,8 @@ class TimeslotViewset(viewsets.ModelViewSet):
 
         barber_working_hour = barber_timeslot.timeslot
         booked_slot = [a.start_time for a in appo]
-        # print(booked_slot, appo)
         for slot in booked_slot:
             barber_working_hour = barber_working_hour[:slot] + '0' + barber_working_hour[slot + 1:]
             
-        data = {
-            'bab': barber_working_hour
-        }
-        # print(data['bab'])
-            
-        return Response({'barber timeslot': barber_working_hour})
-
-
-    def post(self, request, *args, **kwargs):
-        data = request.data.copy()
-        data['user'] = request.user.id
-        serializer = serializers.UserTimeslotSerializer(data=data)
-        if serializer.is_valid(raise_exception=True):
-            serializer.save()
-        
-        return Response(serializer.data)
-        
-    def list(self, request, id=None, val=False, *args, **kwargs):
-        queryset = BarberTimeslot.objects.all()
-        timeslotlist = []
-        serializer = serializers.UserTimeslotSerializer(queryset, many=True)
-        for x in serializer.data:
-            timeslotlist.append((x['user'], x['day_of_week'], x['available_start'], x['available_end']))
-        user_working_hours = get_working_hours(timeslotlist)
-        print(user_working_hours)
-        if val:
-            print(1)
-            if id:
-                return user_working_hours[id]
-            return user_working_hours
-            
-        if id:
-            print(2)
-            return Response({id: user_working_hours[id]})
-        return Response({"Available timeslots": user_working_hours})
-        
-    def get_free_slot(self, request, id=None, *args, **kwargs):
-        date = datetime.strptime(request.GET.get('date'), "%d-%m-%Y")
-        
-        if date.date() < datetime.today().date():
-            return Response('cannot be earlier than today')
-        
-        ts = BarberTimeslot.objects.filter(
-            Q(user=id) &
-            Q(day_of_week=date.weekday())
-        )
-        appo = Appointment.objects.filter(
-            Q(barber=id) &
-            Q(date=date)
-        )
-        barber_working_hour = get_hours([(t.available_start, t.available_end) for t in ts])
-        booked_slot = [a.start_time for a in appo]
-        
-        print(barber_working_hour, booked_slot)
-        
-        free_hour = set(barber_working_hour) -set(booked_slot)
-        '''
-            true = booked
-            false = available
-        '''
-        schedule = {hour: hour in booked_slot for hour in barber_working_hour}
-        
-        # filter by range of date
-        # #swapping out
-        # if start.weekday() > end.weekday():
-        #     start, end = end, start
-        # # print(Q(day_of_week__range=[start.weekday(), end.weekday()]))
-        # a = BarberTimeslot.objects.filter(
-        #     Q(user=id) &
-        #     Q(day_of_week__range=[start.weekday(), end.weekday()])
-        # )
-        
-        # for x in a:
-        #     qwe.
-        
-        # test = get_working_hours
-        
-        return Response({'barber\'s timeslot': schedule})
-        # BarberTimeslot.objects.filter
-
-def get_hours(schedule):
-    hours = []
-    for s in schedule:
-        start, end = s
-        diff = end - start
-        hours.extend(range(start, start+diff))
-        hours.sort()
-    return hours
-        
-        
-        
-        
-def get_working_hours(barber_timeslots):
-    barber_working_hours = {}
-    working_hours = []
-    last_barber = None
-    day = {}
-    last_dow = None
-    for data in barber_timeslots:
-        current_barber, day_of_week, start, end = data
-        if (last_barber and not last_barber == current_barber):
-            working_hours = []
-            day = {}
-        if current_barber == last_barber and not last_dow == day_of_week:
-            working_hours = []
-        last_dow = day_of_week
-        last_barber = current_barber
-    
-        time_diff = end-start
-        working_hours.extend(range(start,start+time_diff))
-        working_hours.sort()
-        day[day_of_week] = working_hours
-        barber_working_hours[current_barber] = day
-    print(33)
-
-    return barber_working_hours
-
+        return Response({f'Barber timeslot': barber_working_hour})
 
