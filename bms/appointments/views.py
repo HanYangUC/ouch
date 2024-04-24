@@ -34,7 +34,10 @@ class AppointmentViewset(viewsets.ModelViewSet):
         
         
     def cancel(self, request, id, *args, **kwargs):
-        appointment = Appointment.objects.get(id=id)
+        appointment = Appointment.objects.filter(id=id).first()
+        if not appointment:
+            return Response({'Error': 'Invalid appointment ID'})
+        
         if not (request.user.id == appointment.barber.id or request.user.id == appointment.customer.id):
             return Response({'Error': 'User not associated to appointment'})
         
