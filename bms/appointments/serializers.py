@@ -37,7 +37,7 @@ class AppointmentSerializer(serializers.ModelSerializer):
         if not is_working:
             raise serializers.ValidationError({"error": "barber not working on that day"})
         else:
-            timeslot = TimeslotViewset.get_timeslotss(self, data, id=data['barber'].id, val_date=data['date'])
+            timeslot = TimeslotViewset.get_timeslots(self, data, id=data['barber'].id, val_date=data['date'])
             
             print('11')
             print(timeslot.data['barber timeslot'][0])
