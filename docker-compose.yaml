@@ -1,0 +1,36 @@
+version: '3.9'
+
+services:
+  testouch:
+    image: postgres
+    environment:
+      - POSTGRES_DB=testouch
+      - POSTGRES_USER=hy
+      - POSTGRES_PASSWORD=hy
+      - POSTGRES_HOST_AUTH_METHOD=trust
+      - POSTGRES_HOST=0.0.0.0
+      - POSTGRES_PORT=5432
+    volumes:
+      - ./init.sql:/docker-entrypoint-initdb.d/init.sql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U hy -d testouch"]
+      interval: 5s
+      retries: 5
+      timeout: 5s
+
+
+  web:
+    build: 
+      context: .
+      dockerfile: Dockerfile
+    command: > 
+      bash -c "python manage.py migrate && python manage.py runserver 0.0.0.0:8000"
+
+    volumes:
+      - .:/app
+    ports:
+      - "8000:8000"
+    depends_on:
+      testouch:
+        condition: service_healthy
+
